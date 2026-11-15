@@ -7,6 +7,40 @@ Repositorio remoto: [GitHub](https://github.com/Jose-Glez-Hdez/AE6)
 
 Autoría: imagen oficial de Ubuntu — https://hub.docker.com/_/ubuntu
 
+## Arquitectura
+
+```mermaid
+flowchart LR
+    C["dpl-cliente<br/>dpl-net: 172.18.0.3<br/>ae4_default: 172.20.0.6<br/>resolv.conf → 172.18.0.2"]
+    D["dpl-lab · BIND9 (53/udp, 53/tcp)<br/>zona dpl.local (type master)<br/>172.18.0.2"]
+    W["ae4-nginx-1 · nginx (:80)<br/>www.dpl.local<br/>172.20.0.5"]
+    A["ae4-app-1 · Django/Gunicorn (:8000)<br/>app.dpl.local<br/>172.20.0.3"]
+    L["dpl-lab · slapd (389/tcp)<br/>dc=dpl,dc=local · ou=usuarios<br/>172.18.0.2 / 172.20.0.7"]
+
+    C -- "1. consulta DNS" --> D
+    C -- "2. HTTP www.dpl.local" --> W
+    W -- "3. proxy_pass app:8000" --> A
+    A -- "4. bind LDAP (LDAP_HOST=ldap://172.20.0.7)" --> L
+    C -. "HTTP app.dpl.local:8000" .-> A
+    C -. "ldapwhoami / ldapsearch (ldap://172.18.0.2)" .-> L
+```
+
+| Contenedor | Redes e IPs | Servicio | Nombre DNS |
+|---|---|---|---|
+| dpl-cliente | dpl-net 172.18.0.3 · ae4_default 172.20.0.6 | Cliente de pruebas (dig, curl, ldap-utils) | — |
+| dpl-lab | dpl-net 172.18.0.2 · ae4_default 172.20.0.7 | BIND9 (53) y slapd (389) | ns1.dpl.local |
+| ae4-nginx-1 | ae4_default 172.20.0.5 | Servidor Web nginx, proxy a Django | www.dpl.local |
+| ae4-app-1 | ae4_default 172.20.0.3 | Servidor de aplicaciones Django/Gunicorn | app.dpl.local |
+
+Flujo de un login: el cliente resuelve `www.dpl.local` con BIND9 (1), envía la
+petición a nginx (2), que la reenvía a Django (3), y Django valida las credenciales
+haciendo un bind contra slapd (4). Las flechas discontinuas son las comprobaciones
+directas desde el cliente.
+
+dpl-lab está en las dos redes: en `dpl-net` atiende al cliente (DNS y LDAP) y en
+`ae4_default` atiende a la aplicación (LDAP).
+
+
 ## 1. Instalación de BIND9 en dpl-lab
 
 La instalación se hace dentro del contenedor `dpl-lab`:
