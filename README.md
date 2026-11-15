@@ -254,3 +254,43 @@ docker exec dpl-cliente curl -s http://app.dpl.local:8000/api/mensaje
 - `app.dpl.local` → 172.20.0.3 (Django/Gunicorn, puerto 8000 interno).
 - La resolución depende del BIND9 de dpl-lab: el cliente no tiene entradas en
   `/etc/hosts` y su `resolv.conf` apunta a 172.18.0.2.
+
+## 7. Instalación de OpenLDAP (slapd) en dpl-lab
+
+Instalación desatendida dentro del contenedor, preseleccionando las respuestas del
+asistente con `debconf-set-selections` para que la base sea `dc=dpl,dc=local`:
+
+```bash
+docker exec dpl-lab bash -c "\
+  echo 'slapd slapd/domain string dpl.local' | debconf-set-selections &&\
+  echo 'slapd shared/organization string DPL' | debconf-set-selections &&\
+  echo 'slapd slapd/password1 password CAMBIAR_ESTO' | debconf-set-selections &&\
+  echo 'slapd slapd/password2 password CAMBIAR_ESTO' | debconf-set-selections &&\
+  echo 'slapd slapd/backend select MDB' | debconf-set-selections &&\
+  echo 'slapd slapd/purge_database boolean false' | debconf-set-selections &&\
+  echo 'slapd slapd/move_old_database boolean true' | debconf-set-selections &&\
+  apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y slapd ldap-utils"
+```
+
+- `slapd/domain dpl.local` → base del árbol `dc=dpl,dc=local`.
+- Administrador del directorio: `cn=admin,dc=dpl,dc=local`.
+- `ldap-utils` aporta los clientes `ldapsearch`, `ldapadd` y `ldapwhoami`.
+
+Verificación de la base con `slapcat` (lee directamente la base, sin red):
+
+```bash
+docker exec dpl-lab slapcat
+dn: dc=dpl,dc=local
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: DPL
+dc: dpl
+structuralObjectClass: organization
+entryUUID: 12f48eec-7544-1041-89ff-4b607e5c8ebb
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115132739Z
+entryCSN: 20261115132739.743566Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115132739Z
+```
