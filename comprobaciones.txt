@@ -179,3 +179,36 @@ modifiersName: cn=admin,dc=dpl,dc=local
 modifyTimestamp: 20261115133725Z
 
 
+######## FASE 3 — INTEGRACIÓN (2026-11-15 14:11) ########
+
+== Configuración LDAP de la aplicación ==
+$ docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}={{$v.IPAddress}} {{end}}' dpl-lab
+ae4_default=172.20.0.7 dpl-net=172.18.0.2 
+
+$ cd ~/Downloads/ae4 && docker compose exec app env | grep LDAP
+LDAP_USER_FILTER=(uid=%s)
+LDAP_HOST=ldap://172.20.0.7
+LDAP_BASE_DN=ou=usuarios,dc=dpl,dc=local
+
+$ cd ~/Downloads/ae4 && docker compose ps
+NAME            IMAGE                                                                     COMMAND                  SERVICE   CREATED         STATUS                   PORTS
+ae4-app-1       sha256:15f0d0a51238a6db309976adb81548e7c4c81d96c23e2d8ee7a71bded211b6c9   "gunicorn config.wsg…"   app       8 minutes ago   Up 8 minutes (healthy)   8000/tcp
+ae4-db-1        postgres:16-alpine                                                        "docker-entrypoint.s…"   db        2 hours ago     Up 2 hours (healthy)     5432/tcp
+ae4-nginx-1     nginx:1.27-alpine                                                         "/docker-entrypoint.…"   nginx     2 hours ago     Up 2 hours               0.0.0.0:8000->80/tcp, [::]:8000->80/tcp
+ae4-pgadmin-1   dpage/pgadmin4:9.17                                                       "/entrypoint.sh"         pgadmin   2 hours ago     Up 2 hours (healthy)     0.0.0.0:5050->80/tcp, [::]:5050->80/tcp
+
+== Login de la aplicación contra el directorio (por nombre) ==
+$ docker exec dpl-cliente curl -s -X POST -d 'usuario=alumno&password=CAMBIAR_ESTO' http://www.dpl.local/api/login
+{"autenticado": true, "usuario": "alumno", "perfil": {"cn": "alumno", "mail": "alumno@dpl.local"}}
+$ docker exec dpl-cliente curl -s -X POST -d 'usuario=maria&password=CAMBIAR_ESTO' http://www.dpl.local/api/login
+{"autenticado": true, "usuario": "maria", "perfil": {"cn": "maria", "mail": "maria@dpl.local"}}
+$ docker exec dpl-cliente curl -s -o /dev/null -w '%{http_code}
+' -X POST -d 'usuario=alumno&password=CAMBIAR_ESTO' http://www.dpl.local/api/login
+200
+
+$ docker exec dpl-cliente curl -s -o /dev/null -w '%{http_code}
+' -X POST -d 'usuario=alumno&password=incorrecta' http://www.dpl.local/api/login
+401
+
+$ docker exec dpl-cliente curl -s -X POST -d 'usuario=alumno&password=CAMBIAR_ESTO' http://app.dpl.local:8000/api/login
+{"autenticado": true, "usuario": "alumno", "perfil": {"cn": "alumno", "mail": "alumno@dpl.local"}}
