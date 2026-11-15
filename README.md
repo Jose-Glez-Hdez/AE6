@@ -112,3 +112,74 @@ OK
 
 `named-checkconf` no produce salida cuando la configuración es correcta (código 0);
 `named-checkzone` termina en `OK`.
+
+## 4. Arranque de named sin systemd
+
+El contenedor no ejecuta systemd, así que `named` se lanza en foreground (`-g`)
+y `docker exec -d` lo mantiene en segundo plano dentro de dpl-lab:
+
+```bash
+docker exec -d dpl-lab named -g
+```
+
+Comprobación por proceso y puerto (53 en UDP y TCP):
+
+```bash
+docker exec dpl-lab pgrep -a named
+456 named -g
+docker exec dpl-lab ss -lunp | grep ':53'
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=100))
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=98)) 
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=96)) 
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=97)) 
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=101))
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=99)) 
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=102))
+UNCONN 0      0         172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=95)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=77)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=76)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=78)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=75)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=73)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=72)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=74)) 
+UNCONN 0      0          127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=71)) 
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=111))
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=112))
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=113))
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=114))
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=115))
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=116))
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=117))
+UNCONN 0      0              [::1]:53            [::]:*    users:(("named",pid=456,fd=118))
+docker exec dpl-lab ss -lntp | grep ':53'
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=93)) 
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=91)) 
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=89)) 
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=83)) 
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=87)) 
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=81)) 
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=84)) 
+LISTEN 0      10         127.0.0.1:53         0.0.0.0:*    users:(("named",pid=456,fd=79)) 
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=109))
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=110))
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=108))
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=107))
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=106))
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=105))
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=104))
+LISTEN 0      10        172.18.0.2:53         0.0.0.0:*    users:(("named",pid=456,fd=103))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=119))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=120))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=121))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=123))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=124))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=126))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=122))
+LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=456,fd=125))
+```
+
+**Arranque automático:** no probado (sin systemd en contenedor). Si se reinicia
+dpl-lab hay que relanzar `docker exec -d dpl-lab named -g`. En una máquina con
+systemd se usaría `systemctl enable --now named`.
+
