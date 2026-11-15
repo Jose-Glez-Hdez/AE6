@@ -183,3 +183,33 @@ LISTEN 0      10             [::1]:53            [::]:*    users:(("named",pid=4
 dpl-lab hay que relanzar `docker exec -d dpl-lab named -g`. En una máquina con
 systemd se usaría `systemctl enable --now named`.
 
+## 5. Configuración del cliente (dpl-cliente)
+
+Herramientas de consulta (instaladas antes de cambiar el resolvedor):
+
+```bash
+docker exec dpl-cliente bash -c "apt-get update && apt-get install -y dnsutils iputils-ping"
+```
+
+Resolvedor apuntando al BIND9 de dpl-lab, sin usar `/etc/hosts`:
+
+```bash
+docker exec dpl-cliente bash -c "echo 'nameserver 172.18.0.2' > /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf && echo 'search dpl.local' >> /etc/resolv.conf"
+docker exec dpl-cliente cat /etc/resolv.conf
+nameserver 172.18.0.2
+nameserver 1.1.1.1
+search dpl.local
+```
+
+- `nameserver 172.18.0.2`: el BIND9 de dpl-lab (primero en consultarse).
+- `nameserver 1.1.1.1`: respaldo para nombres de Internet.
+- `search dpl.local`: completa nombres cortos (`www` → `www.dpl.local`).
+
+Conexión a la red de la aplicación (los contenedores nginx y Django están en
+`ae4_default`, no en `dpl-net`):
+
+```bash
+docker network connect ae4_default dpl-cliente
+docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}={{$v.IPAddress}} {{end}}' dpl-cliente
+ae4_default=172.20.0.6 dpl-net=172.18.0.3 
+```
