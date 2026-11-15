@@ -294,3 +294,58 @@ entryCSN: 20261115132739.743566Z#000000#000#000000
 modifiersName: cn=admin,dc=dpl,dc=local
 modifyTimestamp: 20261115132739Z
 ```
+## 8. Arranque de slapd sin systemd
+
+`slapd` se lanza en foreground (`-d 0`, nivel de depuración 0) escuchando LDAP en
+el puerto 389 (`-h ldap:///`); `docker exec -d` lo mantiene en segundo plano:
+
+```bash
+docker exec -d dpl-lab slapd -d 0 -h ldap:///
+```
+
+Comprobación por proceso, puerto y base:
+
+```bash
+docker exec dpl-lab pgrep -a slapd
+1090 slapd -d 0 -h ldap:///
+docker exec dpl-lab ss -lntp | grep ':389'
+LISTEN 0      2048         0.0.0.0:389        0.0.0.0:*    users:(("slapd",pid=1090,fd=6)) 
+LISTEN 0      2048            [::]:389           [::]:*    users:(("slapd",pid=1090,fd=7)) 
+docker exec dpl-lab ldapsearch -x -LLL -b "dc=dpl,dc=local" "objectClass=*" dn
+dn: dc=dpl,dc=local
+```
+
+Cliente LDAP en dpl-cliente y consulta por red (en OpenLDAP 2.6 el host se indica
+con `-H ldap://IP`; la opción `-h` ya no existe):
+
+```bash
+docker exec dpl-cliente bash -c "apt-get update && apt-get install -y ldap-utils"
+docker exec dpl-cliente ldapsearch -x -LLL -H ldap://172.18.0.2 -b "dc=dpl,dc=local" "objectClass=*" dn
+Hit:1 http://ports.ubuntu.com/ubuntu-ports noble InRelease
+Hit:2 http://ports.ubuntu.com/ubuntu-ports noble-updates InRelease
+Hit:3 http://ports.ubuntu.com/ubuntu-ports noble-backports InRelease
+Hit:4 http://ports.ubuntu.com/ubuntu-ports noble-security InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Suggested packages:
+  libsasl2-modules-gssapi-mit | libsasl2-modules-gssapi-heimdal
+The following NEW packages will be installed:
+  ldap-utils
+0 upgraded, 1 newly installed, 0 to remove and 13 not upgraded.
+Need to get 149 kB of archives.
+After this operation, 811 kB of additional disk space will be used.
+Get:1 http://ports.ubuntu.com/ubuntu-ports noble-updates/main arm64 ldap-utils arm64 2.6.10+dfsg-0ubuntu0.24.04.1 [149 kB]
+debconf: delaying package configuration, since apt-utils is not installed
+Fetched 149 kB in 1s (155 kB/s)
+Selecting previously unselected package ldap-utils.
+(Reading database ... 5593 files and directories currently installed.)
+Preparing to unpack .../ldap-utils_2.6.10+dfsg-0ubuntu0.24.04.1_arm64.deb ...
+Unpacking ldap-utils (2.6.10+dfsg-0ubuntu0.24.04.1) ...
+Setting up ldap-utils (2.6.10+dfsg-0ubuntu0.24.04.1) ...
+dn: dc=dpl,dc=local
+```
+
+**Arranque automático:** no probado (sin systemd en contenedor). Si se reinicia
+dpl-lab hay que relanzar `docker exec -d dpl-lab slapd -d 0 -h ldap:///`.
