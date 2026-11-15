@@ -349,3 +349,49 @@ dn: dc=dpl,dc=local
 
 **Arranque automático:** no probado (sin systemd en contenedor). Si se reinicia
 dpl-lab hay que relanzar `docker exec -d dpl-lab slapd -d 0 -h ldap:///`.
+
+## 9. Usuarios del directorio (LDIF)
+
+`ldif/usuarios.ldif` crea la unidad organizativa `ou=usuarios` y los usuarios
+`alumno` y `maria` (clase `inetOrgPerson`, contraseña de laboratorio
+`CAMBIAR_ESTO`, no real):
+
+- `dn`: nombre distinguido, la ruta completa de la entrada en el árbol.
+- `organizationalUnit`: agrupa a los usuarios bajo `ou=usuarios,dc=dpl,dc=local`.
+- `inetOrgPerson`: define los atributos de una persona (`uid`, `cn`, `sn`, `mail`,
+  `userPassword`). El `uid` es el nombre de inicio de sesión.
+
+Carga desde dpl-cliente autenticándose como administrador:
+
+```bash
+docker cp ~/dpl/AE6/ldif/usuarios.ldif dpl-cliente:/tmp/usuarios.ldif
+docker exec -it dpl-cliente ldapadd -x -H ldap://172.18.0.2 -D "cn=admin,dc=dpl,dc=local" -W -f /tmp/usuarios.ldif
+Successfully copied 390B (transferred 2.05kB) to dpl-cliente:/tmp/usuarios.ldif
+Enter LDAP Password: 
+adding new entry "ou=usuarios,dc=dpl,dc=local"
+
+adding new entry "uid=alumno,ou=usuarios,dc=dpl,dc=local"
+
+adding new entry "uid=maria,ou=usuarios,dc=dpl,dc=local"
+
+
+What's next:
+    Try Docker Debug for seamless, persistent debugging tools in any container or image → docker debug dpl-cliente
+    Learn more at https://docs.docker.com/go/debug-cli/
+```
+
+`-D` indica el DN con el que se autentica y `-W` pide la contraseña sin dejarla en
+el historial.
+
+Árbol resultante visto por red:
+
+```bash
+docker exec dpl-cliente ldapsearch -x -LLL -H ldap://172.18.0.2 -b "dc=dpl,dc=local" "objectClass=*" dn
+dn: dc=dpl,dc=local
+
+dn: ou=usuarios,dc=dpl,dc=local
+
+dn: uid=alumno,ou=usuarios,dc=dpl,dc=local
+
+dn: uid=maria,ou=usuarios,dc=dpl,dc=local
+```
