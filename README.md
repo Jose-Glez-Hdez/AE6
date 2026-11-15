@@ -506,3 +506,66 @@ incluso con la contraseña correcta, y no se podía configurar por variables de 
 Respuestas: 200 `{"autenticado": true, "perfil": {cn, mail}}` si el bind funciona,
 401 si el directorio rechaza las credenciales, 400 si faltan datos y 503 si no hay
 `LDAP_HOST`.
+
+## 12. Configuración del despliegue para autenticar contra el directorio
+
+Variables añadidas al servicio `app` en `compose.yml` (repo ae4, commit `3fb0dce`):
+
+```yaml
+      LDAP_HOST: ${LDAP_HOST:-}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-ou=usuarios,dc=dpl,dc=local}
+      LDAP_USER_FILTER: ${LDAP_USER_FILTER:-(uid=%s)}
+```
+
+La app y dpl-lab deben compartir red: se conecta dpl-lab a la red del proyecto
+Compose (`ae4_default`), donde recibe la IP `172.20.0.7`:
+
+```bash
+docker network connect ae4_default dpl-lab
+docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}={{$v.IPAddress}} {{end}}' dpl-lab
+ae4_default=172.20.0.7 dpl-net=172.18.0.2
+```
+
+Despliegue con `LDAP_HOST` apuntando a dpl-lab en esa red (no a 172.18.0.2, que
+está en dpl-net y la app no alcanza):
+
+```bash
+export LDAP_HOST="ldap://172.20.0.7"
+docker compose up -d --build
+docker compose exec app env | grep LDAP
+[+] Building 2.3s (13/13) FINISHED                                                                                                                  
+ => [internal] load local bake definitions                                                                                                     0.0s
+ => => reading from stdin 500B                                                                                                                 0.0s
+ => [internal] load build definition from dockerfile                                                                                           0.0s
+ => => transferring dockerfile: 406B                                                                                                           0.0s
+ => [internal] load metadata for docker.io/library/python:3.12-slim                                                                            1.5s
+ => [internal] load .dockerignore                                                                                                              0.0s
+ => => transferring context: 2B                                                                                                                0.0s
+ => [1/6] FROM docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b                      0.0s
+ => => resolve docker.io/library/python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b                      0.0s
+ => [internal] load build context                                                                                                              0.5s
+ => => transferring context: 1.35MB                                                                                                            0.5s
+ => CACHED [2/6] WORKDIR /app                                                                                                                  0.0s
+ => CACHED [3/6] COPY requirements.txt .                                                                                                       0.0s
+ => CACHED [4/6] RUN pip install --no-cache-dir -r requirements.txt                                                                            0.0s
+ => CACHED [5/6] COPY . .                                                                                                                      0.0s
+ => CACHED [6/6] RUN useradd --create-home --uid 1000 appuser     && mkdir -p /data     && chown appuser:appuser /data                         0.0s
+ => exporting to image                                                                                                                         0.0s
+ => => exporting layers                                                                                                                        0.0s
+ => => exporting manifest sha256:3f350b08e642ef2baaa563692c6fd3b4ea3105fa0cfba1fe5873b623ef8325c4                                              0.0s
+ => => exporting config sha256:7c3a035c0f4fadd5e7ff6171905c770fc8eb7054ebe15a86a0f803741756b84c                                                0.0s
+ => => exporting attestation manifest sha256:da7b0fbb99490c23eccc98ead0d17876d3a44bfe2997e99927f645686a7f8208                                  0.0s
+ => => exporting manifest list sha256:419f9fe944ca7c4f9f61bf831a04b9091bf5d32238330bc58a5a0250ccdc4ac9                                         0.0s
+ => => naming to docker.io/library/ae4-app:latest                                                                                              0.0s
+ => => unpacking to docker.io/library/ae4-app:latest                                                                                           0.0s
+ => resolving provenance for metadata file                                                                                                     0.0s
+[+] up 5/5
+ ✔ Image ae4-app           Built                                                                                                                2.3s
+ ✔ Container ae4-pgadmin-1 Running                                                                                                              0.0s
+ ✔ Container ae4-app-1     Healthy                                                                                                              1.0s
+ ✔ Container ae4-nginx-1   Running                                                                                                              0.0s
+ ✔ Container ae4-db-1      Healthy                                                                                                              0.5s
+LDAP_USER_FILTER=(uid=%s)
+LDAP_HOST=ldap://172.20.0.7
+LDAP_BASE_DN=ou=usuarios,dc=dpl,dc=local
+```
