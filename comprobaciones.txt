@@ -67,7 +67,9 @@ rtt min/avg/max/mdev = 0.079/0.537/1.217/0.490 ms
 $ docker exec dpl-cliente curl -I http://www.dpl.local
   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                  Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
 HTTP/1.1 200 OK
 Server: nginx/1.27.5
 Date: Sun, 15 Nov 2026 13:17:17 GMT
@@ -79,3 +81,101 @@ $ docker exec dpl-cliente curl -s http://app.dpl.local:8000/api/mensaje
 {"mensaje": "Hola desde el servidor de aplicaciones", "hostname": "2430284e2de3", "fecha": "2026-11-15T14:17:17+01:00"}
 $ docker exec dpl-cliente curl -s http://www.dpl.local/api/mensaje
 {"mensaje": "Hola desde el servidor de aplicaciones", "hostname": "2430284e2de3", "fecha": "2026-11-15T14:17:17+01:00"}
+
+######## FASE 2 — DIRECTORIO (2026-11-15 13:41) ########
+
+== Servicio slapd en dpl-lab ==
+$ docker exec dpl-lab pgrep -a slapd
+1090 slapd -d 0 -h ldap:///
+
+$ docker exec dpl-lab ss -lntp | grep ':389'
+LISTEN 0      2048         0.0.0.0:389        0.0.0.0:*    users:(("slapd",pid=1090,fd=6)) 
+LISTEN 0      2048            [::]:389           [::]:*    users:(("slapd",pid=1090,fd=7)) 
+
+== Árbol del directorio visto por red ==
+$ docker exec dpl-cliente ldapsearch -x -LLL -H ldap://172.18.0.2 -b 'dc=dpl,dc=local' 'objectClass=*' dn
+dn: dc=dpl,dc=local
+
+dn: ou=usuarios,dc=dpl,dc=local
+
+dn: uid=alumno,ou=usuarios,dc=dpl,dc=local
+
+dn: uid=maria,ou=usuarios,dc=dpl,dc=local
+
+
+== Autenticación (bind) ==
+$ docker exec dpl-cliente ldapwhoami -x -H ldap://172.18.0.2 -D 'uid=alumno,ou=usuarios,dc=dpl,dc=local' -w CAMBIAR_ESTO
+dn:uid=alumno,ou=usuarios,dc=dpl,dc=local
+
+$ docker exec dpl-cliente ldapwhoami -x -H ldap://172.18.0.2 -D 'uid=maria,ou=usuarios,dc=dpl,dc=local' -w CAMBIAR_ESTO
+dn:uid=maria,ou=usuarios,dc=dpl,dc=local
+
+$ docker exec dpl-cliente ldapwhoami -x -H ldap://172.18.0.2 -D 'uid=alumno,ou=usuarios,dc=dpl,dc=local' -w incorrecta; echo "código de salida: $?"
+ldap_bind: Invalid credentials (49)
+código de salida: 49
+
+== Perfil del usuario ==
+$ docker exec dpl-cliente ldapsearch -x -LLL -H ldap://172.18.0.2 -b 'ou=usuarios,dc=dpl,dc=local' '(uid=alumno)' cn mail
+dn: uid=alumno,ou=usuarios,dc=dpl,dc=local
+cn: alumno
+mail: alumno@dpl.local
+
+
+== Volcado del directorio (slapcat) ==
+$ docker exec dpl-lab slapcat
+dn: dc=dpl,dc=local
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: DPL
+dc: dpl
+structuralObjectClass: organization
+entryUUID: 12f48eec-7544-1041-89ff-4b607e5c8ebb
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115132739Z
+entryCSN: 20261115132739.743566Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115132739Z
+
+dn: ou=usuarios,dc=dpl,dc=local
+objectClass: organizationalUnit
+ou: usuarios
+structuralObjectClass: organizationalUnit
+entryUUID: 704ffb48-7545-1041-890e-cda239db4dac
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115133725Z
+entryCSN: 20261115133725.867473Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115133725Z
+
+dn: uid=alumno,ou=usuarios,dc=dpl,dc=local
+objectClass: inetOrgPerson
+uid: alumno
+cn: alumno
+sn: Alumno DPL
+mail: alumno@dpl.local
+userPassword:: Q0FNQklBUl9FU1RP
+structuralObjectClass: inetOrgPerson
+entryUUID: 7050e1fc-7545-1041-890f-cda239db4dac
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115133725Z
+entryCSN: 20261115133725.873472Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115133725Z
+
+dn: uid=maria,ou=usuarios,dc=dpl,dc=local
+objectClass: inetOrgPerson
+uid: maria
+cn: maria
+sn: Maria DPL
+mail: maria@dpl.local
+userPassword:: Q0FNQklBUl9FU1RP
+structuralObjectClass: inetOrgPerson
+entryUUID: 70514f48-7545-1041-8910-cda239db4dac
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115133725Z
+entryCSN: 20261115133725.876273Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115133725Z
+
+
