@@ -213,3 +213,44 @@ docker network connect ae4_default dpl-cliente
 docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}={{$v.IPAddress}} {{end}}' dpl-cliente
 ae4_default=172.20.0.6 dpl-net=172.18.0.3 
 ```
+## 6. Comprobación de la resolución y acceso por nombre
+
+Desde dpl-cliente, sin entradas en `/etc/hosts` (salidas completas en
+`comprobaciones.txt`):
+
+```bash
+docker exec dpl-cliente grep dpl.local /etc/hosts || echo "sin entradas locales (correcto)"
+sin entradas locales (correcto)
+docker exec dpl-cliente dig @172.18.0.2 www.dpl.local A +noall +answer
+www.dpl.local.		3600	IN	A	172.20.0.5
+docker exec dpl-cliente dig @172.18.0.2 app.dpl.local A +noall +answer
+app.dpl.local.		3600	IN	A	172.20.0.3
+docker exec dpl-cliente host -t ns dpl.local
+dpl.local name server ns1.dpl.local.
+docker exec dpl-cliente ping -c 3 www.dpl.local
+PING www.dpl.local (172.20.0.5) 56(84) bytes of data.
+64 bytes from 172.20.0.5: icmp_seq=1 ttl=64 time=0.370 ms
+64 bytes from 172.20.0.5: icmp_seq=2 ttl=64 time=0.307 ms
+64 bytes from 172.20.0.5: icmp_seq=3 ttl=64 time=0.176 ms
+
+--- www.dpl.local ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2072ms
+rtt min/avg/max/mdev = 0.176/0.284/0.370/0.080 ms
+docker exec dpl-cliente curl -I http://www.dpl.local
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
+HTTP/1.1 200 OK
+Server: nginx/1.27.5
+Date: Sun, 15 Nov 2026 13:21:09 GMT
+Content-Type: text/html; charset=utf-8
+Connection: keep-alive
+docker exec dpl-cliente curl -s http://app.dpl.local:8000/api/mensaje
+{"mensaje": "Hola desde el servidor de aplicaciones", "hostname": "2430284e2de3", "fecha": "2026-11-15T14:21:25+01:00"}%  
+```
+
+- `www.dpl.local` → 172.20.0.5 (nginx, puerto 80), que reenvía las peticiones a
+  Django (`proxy_pass http://app:8000`).
+- `app.dpl.local` → 172.20.0.3 (Django/Gunicorn, puerto 8000 interno).
+- La resolución depende del BIND9 de dpl-lab: el cliente no tiene entradas en
+  `/etc/hosts` y su `resolv.conf` apunta a 172.18.0.2.
