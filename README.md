@@ -569,3 +569,26 @@ LDAP_USER_FILTER=(uid=%s)
 LDAP_HOST=ldap://172.20.0.7
 LDAP_BASE_DN=ou=usuarios,dc=dpl,dc=local
 ```
+
+## 13. Login de la aplicación contra el directorio
+
+Desde dpl-cliente y por nombre (salidas completas en `comprobaciones.txt`):
+
+```bash
+docker exec dpl-cliente curl -s -X POST -d "usuario=alumno&password=CAMBIAR_ESTO" http://www.dpl.local/api/login
+{"autenticado": true, "usuario": "alumno", "perfil": {"cn": "alumno", "mail": "alumno@dpl.local"}}% 
+docker exec dpl-cliente curl -s -o /dev/null -w '%{http_code}\n' -X POST -d "usuario=alumno&password=CAMBIAR_ESTO" http://www.dpl.local/api/login
+200
+docker exec dpl-cliente curl -s -o /dev/null -w '%{http_code}\n' -X POST -d "usuario=alumno&password=incorrecta" http://www.dpl.local/api/login
+401
+```
+
+Cadena completa de una petición de login:
+
+1. dpl-cliente resuelve `www.dpl.local` con el BIND9 de dpl-lab (172.18.0.2) → 172.20.0.5.
+2. nginx recibe la petición en el puerto 80 y la reenvía a `app:8000` (Gunicorn).
+3. Django hace el *bind* contra slapd (`ldap://172.20.0.7`) con el DN
+   `uid=alumno,ou=usuarios,dc=dpl,dc=local` y la contraseña recibida.
+4. Si el bind funciona, busca con el filtro `(uid=alumno)` en `ou=usuarios,dc=dpl,dc=local`
+   y devuelve `cn` y `mail` (200); si el directorio rechaza las credenciales
+   (error 49), responde 401.
