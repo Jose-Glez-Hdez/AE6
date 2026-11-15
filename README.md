@@ -373,11 +373,6 @@ adding new entry "ou=usuarios,dc=dpl,dc=local"
 adding new entry "uid=alumno,ou=usuarios,dc=dpl,dc=local"
 
 adding new entry "uid=maria,ou=usuarios,dc=dpl,dc=local"
-
-
-What's next:
-    Try Docker Debug for seamless, persistent debugging tools in any container or image → docker debug dpl-cliente
-    Learn more at https://docs.docker.com/go/debug-cli/
 ```
 
 `-D` indica el DN con el que se autentica y `-W` pide la contraseña sin dejarla en
