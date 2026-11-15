@@ -707,3 +707,80 @@ Resultado: 7 comprobación(es) fallida(s).
 código de salida: 1
 docker exec -d dpl-lab slapd -d 0 -h ldap:///
 ```
+
+## Informe de diagnóstico
+
+Cada fallo se provocó de forma controlada en el entorno, se diagnosticó con los
+comandos indicados y se corrigió. Una capa por fallo, siguiendo el camino de una
+petición (ver diagrama de arquitectura).
+
+### Fallo 1: DNS
+
+- **Síntoma observado:** `curl` a `http://www.dpl.local` no obtiene respuesta y
+  `ping` pierde el 100 % de los paquetes.
+
+```bash
+$ docker exec dpl-cliente curl -sI --max-time 5 http://www.dpl.local; echo "código de salida: $?"
+código de salida: 7
+
+$ docker exec dpl-cliente ping -c 2 -W 2 www.dpl.local
+PING www.dpl.local (172.20.0.50) 56(84) bytes of data.
+
+--- www.dpl.local ping statistics ---
+2 packets transmitted, 0 received, 100% packet loss, time 1064ms
+```
+
+- **Causa:** el registro A de `www` en `/etc/bind/db.dpl.local` apuntaba a
+  `172.20.0.50` (serial 2026111502), una IP sin servicio, en lugar de a nginx
+  (`172.20.0.5`).
+- **Comprobación:** `named` está activo y la zona es sintácticamente válida, pero
+  `dig` devuelve una IP distinta de la real del contenedor nginx:
+
+```bash
+$ docker exec dpl-lab pgrep -a named
+1482 named -g
+
+$ docker exec dpl-cliente dig @172.18.0.2 www.dpl.local A +noall +answer
+www.dpl.local.		3600	IN	A	172.20.0.50
+
+$ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ae4-nginx-1
+172.20.0.5
+
+$ docker exec dpl-lab named-checkzone dpl.local /etc/bind/db.dpl.local
+zone dpl.local/IN: loaded serial 2026111502
+OK
+
+$ docker exec dpl-lab grep -E 'serial|^www' /etc/bind/db.dpl.local
+        2026111502 ; serial
+www     IN  A   172.20.0.50
+```
+
+- **Corrección aplicada:** se restaura la zona desde `dns/dpl.local.db` (con `www`
+  en 172.20.0.5) subiendo el serial a 2026111503, superior al erróneo, y se relanza
+  `named`:
+
+```bash
+docker exec -i dpl-lab bash -c 'cat > /etc/bind/db.dpl.local' < dns/dpl.local.db
+docker exec dpl-lab pkill named
+docker exec -d dpl-lab named -g
+```
+
+- **Verificación final:**
+
+```bash
+$ docker exec dpl-lab named-checkzone dpl.local /etc/bind/db.dpl.local
+zone dpl.local/IN: loaded serial 2026111503
+OK
+
+$ docker exec dpl-cliente dig @172.18.0.2 www.dpl.local A +noall +answer
+www.dpl.local.		3600	IN	A	172.20.0.5
+
+$ docker exec dpl-cliente curl -sI --max-time 5 http://www.dpl.local | head -2
+HTTP/1.1 200 OK
+Server: nginx/1.27.5
+
+$ IP_DPL_LAB=172.18.0.2 ./scripts/comprobar.sh | tail -3
+[OK]   login incorrecto rechazado (401)
+
+Resultado: todas las comprobaciones han pasado.
+```
