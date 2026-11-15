@@ -80,3 +80,35 @@ docker exec dpl-lab named-checkzone dpl.local /etc/bind/db.dpl.local
 zone dpl.local/IN: loaded serial 2026111501
 OK
 ```
+
+## 3. Declaración de la zona y validación
+
+El fichero `dns/named.conf.local` se copia a `/etc/bind/named.conf.local` en dpl-lab
+(el `named.conf` principal ya lo incluye):
+
+```bash
+docker exec -i dpl-lab bash -c 'cat > /etc/bind/named.conf.local' < dns/named.conf.local
+```
+
+```
+zone "dpl.local" {
+    type master;
+    file "/etc/bind/db.dpl.local";
+};
+```
+
+- `type master`: este servidor es autoritativo para la zona (la edita él).
+- `file`: ruta del fichero con los registros de la zona.
+
+Validación de la configuración y de la zona:
+
+```bash
+docker exec dpl-lab named-checkconf; echo "código de salida: $?"
+código de salida: 0
+docker exec dpl-lab named-checkzone dpl.local /etc/bind/db.dpl.local
+zone dpl.local/IN: loaded serial 2026111501
+OK
+```
+
+`named-checkconf` no produce salida cuando la configuración es correcta (código 0);
+`named-checkzone` termina en `OK`.
