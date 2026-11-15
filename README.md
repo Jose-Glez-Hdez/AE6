@@ -592,3 +592,84 @@ Cadena completa de una petición de login:
 4. Si el bind funciona, busca con el filtro `(uid=alumno)` en `ou=usuarios,dc=dpl,dc=local`
    y devuelve `cn` y `mail` (200); si el directorio rechaza las credenciales
    (error 49), responde 401.
+
+## 14. Script de comprobación automática
+
+`scripts/comprobar.sh` parte de la plantilla del enunciado y la amplía para cubrir
+toda la checklist: puertos 53/udp y 389/tcp, registro NS, ausencia de `dpl.local`
+en `/etc/hosts` del cliente, `ou=usuarios` y los usuarios `alumno` y `maria`,
+acceso por nombre a la Web y a la aplicación, y login correcto (200) e
+incorrecto (401).
+
+- Es **idempotente**: solo consulta el estado, no modifica nada.
+- Usa `set -u` (sin `-e`, para que un fallo no corte el script y se cuenten todos).
+- Devuelve **0** si todo pasa y **1** si alguna comprobación falla.
+
+Ejecución con todos los servicios activos:
+
+```bash
+IP_DPL_LAB=172.18.0.2 ./scripts/comprobar.sh; echo "código de salida: $?"
+== DNS ==
+[OK]   named-checkconf
+[OK]   named-checkzone
+[OK]   named activo
+[OK]   puerto 53/udp escuchando
+[OK]   www.dpl.local -> 172.20.0.5
+[OK]   app.dpl.local -> 172.20.0.3
+[OK]   registro NS ns1.dpl.local
+[OK]   sin dpl.local en /etc/hosts del cliente
+== Directorio ==
+[OK]   slapd activo
+[OK]   puerto 389/tcp escuchando
+[OK]   ou=usuarios en el directorio
+[OK]   usuario alumno en el directorio
+[OK]   usuario maria en el directorio
+[OK]   bind correcto
+[OK]   bind incorrecto rechazado
+== Integración ==
+[OK]   Web por nombre (200)
+[OK]   aplicación por nombre (200)
+[OK]   login LDAP (200)
+[OK]   login incorrecto rechazado (401)
+
+Resultado: todas las comprobaciones han pasado.
+código de salida: 0
+```
+
+Ejecución con `slapd` parado (fallo controlado), que demuestra que el script
+detecta los fallos:
+
+```bash
+docker exec dpl-lab pkill slapd
+IP_DPL_LAB=172.18.0.2 ./scripts/comprobar.sh; echo "código de salida: $?"
+== DNS ==
+[OK]   named-checkconf
+[OK]   named-checkzone
+[OK]   named activo
+[OK]   puerto 53/udp escuchando
+[OK]   www.dpl.local -> 172.20.0.5
+[OK]   app.dpl.local -> 172.20.0.3
+[OK]   registro NS ns1.dpl.local
+[OK]   sin dpl.local en /etc/hosts del cliente
+== Directorio ==
+[FALLO] slapd no activo
+[FALLO] puerto 389/tcp
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] ou=usuarios ausente
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] usuario alumno ausente
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] usuario maria ausente
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] bind correcto rechazado
+[OK]   bind incorrecto rechazado
+== Integración ==
+[OK]   Web por nombre (200)
+[OK]   aplicación por nombre (200)
+[FALLO] login LDAP
+[OK]   login incorrecto rechazado (401)
+
+Resultado: 7 comprobación(es) fallida(s).
+código de salida: 1
+docker exec -d dpl-lab slapd -d 0 -h ldap:///
+```
