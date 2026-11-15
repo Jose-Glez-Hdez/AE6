@@ -212,3 +212,67 @@ $ docker exec dpl-cliente curl -s -o /dev/null -w '%{http_code}
 
 $ docker exec dpl-cliente curl -s -X POST -d 'usuario=alumno&password=CAMBIAR_ESTO' http://app.dpl.local:8000/api/login
 {"autenticado": true, "usuario": "alumno", "perfil": {"cn": "alumno", "mail": "alumno@dpl.local"}}
+######## FASE 4 — SCRIPT DE COMPROBACIÓN (2026-11-15 14:17) ########
+
+== Ejecución con todos los servicios activos ==
+$ IP_DPL_LAB=172.18.0.2 ./scripts/comprobar.sh
+== DNS ==
+[OK]   named-checkconf
+[OK]   named-checkzone
+[OK]   named activo
+[OK]   puerto 53/udp escuchando
+[OK]   www.dpl.local -> 172.20.0.5
+[OK]   app.dpl.local -> 172.20.0.3
+[OK]   registro NS ns1.dpl.local
+[OK]   sin dpl.local en /etc/hosts del cliente
+== Directorio ==
+[OK]   slapd activo
+[OK]   puerto 389/tcp escuchando
+[OK]   ou=usuarios en el directorio
+[OK]   usuario alumno en el directorio
+[OK]   usuario maria en el directorio
+[OK]   bind correcto
+[OK]   bind incorrecto rechazado
+== Integración ==
+[OK]   Web por nombre (200)
+[OK]   aplicación por nombre (200)
+[OK]   login LDAP (200)
+[OK]   login incorrecto rechazado (401)
+
+Resultado: todas las comprobaciones han pasado.
+código de salida: 0
+
+== Ejecución con slapd parado (fallo controlado) ==
+$ docker exec dpl-lab pkill slapd
+$ IP_DPL_LAB=172.18.0.2 ./scripts/comprobar.sh
+== DNS ==
+[OK]   named-checkconf
+[OK]   named-checkzone
+[OK]   named activo
+[OK]   puerto 53/udp escuchando
+[OK]   www.dpl.local -> 172.20.0.5
+[OK]   app.dpl.local -> 172.20.0.3
+[OK]   registro NS ns1.dpl.local
+[OK]   sin dpl.local en /etc/hosts del cliente
+== Directorio ==
+[FALLO] slapd no activo
+[FALLO] puerto 389/tcp
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] ou=usuarios ausente
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] usuario alumno ausente
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] usuario maria ausente
+ldap_sasl_bind(SIMPLE): Can't contact LDAP server (-1)
+[FALLO] bind correcto rechazado
+[OK]   bind incorrecto rechazado
+== Integración ==
+[OK]   Web por nombre (200)
+[OK]   aplicación por nombre (200)
+[FALLO] login LDAP
+[OK]   login incorrecto rechazado (401)
+
+Resultado: 7 comprobación(es) fallida(s).
+código de salida: 1
+$ docker exec -d dpl-lab slapd -d 0 -h ldap:///
+
