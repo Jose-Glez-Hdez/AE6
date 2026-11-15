@@ -483,3 +483,31 @@ modifyTimestamp: 20261115133725Z
 
 `userPassword::` aparece en Base64 (doble `::`), que es una codificación y no un
 cifrado: cualquiera con acceso a `slapcat` puede decodificarla.
+
+## 11. Adaptación de /api/login de la aplicación (repo ae4)
+
+**Problema encontrado:** el endpoint `/api/login` de la aplicación de la UT4
+construía el DN del usuario con `ou=people` fijo en el código e ignoraba
+`LDAP_USER_FILTER`:
+
+```python
+user_dn = f"uid={usuario},ou=people,{base_dn}"
+```
+
+El directorio de la AE6 usa `ou=usuarios`, así que el bind fallaba siempre (401)
+incluso con la contraseña correcta, y no se podía configurar por variables de entorno.
+
+**Solución:** se sustituye la función por la implementación del material del curso
+(commit `3a806bd` del repositorio `ae4`), que sigue el esquema de la teoría
+(bind + búsqueda con ldap3):
+
+| Parámetro | Variable | Valor |
+|---|---|---|
+| Host | `LDAP_HOST` | URL del directorio en dpl-lab (paso siguiente) |
+| Base DN | `LDAP_BASE_DN` | `ou=usuarios,dc=dpl,dc=local` |
+| Filtro | `LDAP_USER_FILTER` | `(uid=%s)` (`%s` = usuario tecleado) |
+| Bind | — | `uid=<usuario>,ou=usuarios,dc=dpl,dc=local` + contraseña recibida |
+
+Respuestas: 200 `{"autenticado": true, "perfil": {cn, mail}}` si el bind funciona,
+401 si el directorio rechaza las credenciales, 400 si faltan datos y 503 si no hay
+`LDAP_HOST`.
