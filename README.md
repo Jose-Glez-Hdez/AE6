@@ -395,3 +395,91 @@ dn: uid=alumno,ou=usuarios,dc=dpl,dc=local
 
 dn: uid=maria,ou=usuarios,dc=dpl,dc=local
 ```
+
+## 10. Autenticación contra el directorio y volcado
+
+El *bind* (autenticarse con un DN y una contraseña) es lo que hace la aplicación
+en `/api/login`. Desde dpl-cliente:
+
+```bash
+docker exec dpl-cliente ldapwhoami -x -H ldap://172.18.0.2 -D "uid=alumno,ou=usuarios,dc=dpl,dc=local" -w CAMBIAR_ESTO
+dn:uid=alumno,ou=usuarios,dc=dpl,dc=local
+docker exec dpl-cliente ldapwhoami -x -H ldap://172.18.0.2 -D "uid=alumno,ou=usuarios,dc=dpl,dc=local" -w incorrecta
+ldap_bind: Invalid credentials (49)
+```
+
+Con la contraseña correcta se confirma el DN; con una incorrecta el directorio
+rechaza el bind con `Invalid credentials (49)`.
+
+Búsqueda del perfil (lo que hace la aplicación tras autenticar):
+
+```bash
+docker exec dpl-cliente ldapsearch -x -LLL -H ldap://172.18.0.2 -b "ou=usuarios,dc=dpl,dc=local" "(uid=alumno)" cn mail
+dn: uid=alumno,ou=usuarios,dc=dpl,dc=local
+cn: alumno
+mail: alumno@dpl.local
+```
+
+Volcado completo con `slapcat` (lee la base directamente en el servidor; sirve
+como verificación y copia de seguridad). Salida completa en `comprobaciones.txt`:
+
+```bash
+docker exec dpl-lab slapcat
+dn: dc=dpl,dc=local
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+o: DPL
+dc: dpl
+structuralObjectClass: organization
+entryUUID: 12f48eec-7544-1041-89ff-4b607e5c8ebb
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115132739Z
+entryCSN: 20261115132739.743566Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115132739Z
+
+dn: ou=usuarios,dc=dpl,dc=local
+objectClass: organizationalUnit
+ou: usuarios
+structuralObjectClass: organizationalUnit
+entryUUID: 704ffb48-7545-1041-890e-cda239db4dac
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115133725Z
+entryCSN: 20261115133725.867473Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115133725Z
+
+dn: uid=alumno,ou=usuarios,dc=dpl,dc=local
+objectClass: inetOrgPerson
+uid: alumno
+cn: alumno
+sn: Alumno DPL
+mail: alumno@dpl.local
+userPassword:: Q0FNQklBUl9FU1RP
+structuralObjectClass: inetOrgPerson
+entryUUID: 7050e1fc-7545-1041-890f-cda239db4dac
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115133725Z
+entryCSN: 20261115133725.873472Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115133725Z
+
+dn: uid=maria,ou=usuarios,dc=dpl,dc=local
+objectClass: inetOrgPerson
+uid: maria
+cn: maria
+sn: Maria DPL
+mail: maria@dpl.local
+userPassword:: Q0FNQklBUl9FU1RP
+structuralObjectClass: inetOrgPerson
+entryUUID: 70514f48-7545-1041-8910-cda239db4dac
+creatorsName: cn=admin,dc=dpl,dc=local
+createTimestamp: 20261115133725Z
+entryCSN: 20261115133725.876273Z#000000#000#000000
+modifiersName: cn=admin,dc=dpl,dc=local
+modifyTimestamp: 20261115133725Z
+```
+
+`userPassword::` aparece en Base64 (doble `::`), que es una codificación y no un
+cifrado: cualquiera con acceso a `slapcat` puede decodificarla.
